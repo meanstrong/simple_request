@@ -1,6 +1,5 @@
 from .httprequest import HTTPRequest
-
-__version__ = '1.0.0'
+from .httprequest import __version__
 
 def get(url, *args, **kargs):
     return HTTPRequest(method='GET', url=url, **kargs)

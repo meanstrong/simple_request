@@ -1,15 +1,12 @@
 import urllib
-import urllib2
 from base64 import b64encode
 import httplib
-#from httplib import HTTPConnection
-from cookielib import CookieJar
 import mimetools
 import mimetypes
 import socket
 
 
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 
 
 class HTTPRequest(object):
@@ -87,6 +84,7 @@ class HTTPRequest(object):
         if cookies:
             headers['Cookie'] = cookies
     
+        print host, method, uri
         self.conn = httplib.HTTPConnection(host, port=port)
         req = self.conn.request(method, uri, body, headers)
 
@@ -94,7 +92,8 @@ class HTTPRequest(object):
     def response(self):
         if not hasattr(self, 'getresponse'):
             self.getresponse = HTTPResponse(self.conn.getresponse())
-            self.conn.close()
+            if self.getresponse.will_close:
+                self.conn.close()
         return self.getresponse
 
 
@@ -169,3 +168,7 @@ class HTTPResponse(object):
     @property
     def headers(self):
         return dict(self.response.getheaders())
+
+    @property
+    def will_close(self):
+        return self.response.will_close
