@@ -1,3 +1,24 @@
+# A simple HTTP request handler
+#
+# -----------------------------------------------------------------------------
+# 0.0.1(20120810): 
+#       Create HTTPRequest and HTTPResponse to handle HTTP, I just create a
+#       simple idea.
+# -----------------------------------------------------------------------------
+# 0.0.2(20120901): 
+#       modify HTTPRequest.response() to create a HTTPResponse object.
+# -----------------------------------------------------------------------------
+# 0.0.3(20120919): 
+#       modify HTTPResponse.content().when I use this to deal with
+#       'www.baidu.com', its response content is unreadable, because of the
+#       HTTPRequest package contained 'Accept-Encoding:gzip' but HTTPResponse
+#       doesn't deal it with gzip. 
+# -----------------------------------------------------------------------------
+# 0.0.4(20120920): 
+#       modify HTTPResponse.cookies() when parse cookies.Geted package contain
+#       'VERSION' info, but send package don't need it.
+# -----------------------------------------------------------------------------
+
 import urllib
 from base64 import b64encode
 import httplib
@@ -6,7 +27,7 @@ import mimetypes
 import socket
 
 
-__version__ = '0.0.2'
+__version__ = '0.0.4'
 
 
 class HTTPRequest(object):
@@ -66,16 +87,13 @@ class HTTPRequest(object):
         if 'User-Agent' not in headers:
             headers['User-Agent'] = 'Python-httprequest/%s' % __version__
         if 'Accept-Encoding' not in headers:
-            headers['Accept-Encoding'] = ','.join(('gzip', 'deflate'))
+            headers['Accept-Encoding'] = ''#','.join(('gzip', 'deflate'))
     
-        if auth is not None \
-        and isinstance(auth, tuple) \
-        and len(auth) == 2:
+        if auth is not None and isinstance(auth, tuple) and len(auth) == 2:
             headers['Authorization'] = \
-                'Basic ' + b64encode("%s:%s" % (auth[0], auth[1]))
+                ' '.join(('Basic', b64encode(':'.join(auth))))
         elif _auth is not None:
-            headers['Authorization'] = \
-                'Basic ' + b64encode(_auth)
+            headers['Authorization'] = ' '.join(('Basic', b64encode(_auth)))
     
         if sessions:
             for (key, value) in list(sessions.items()):
@@ -84,7 +102,6 @@ class HTTPRequest(object):
         if cookies:
             headers['Cookie'] = cookies
     
-        print host, method, uri
         self.conn = httplib.HTTPConnection(host, port=port)
         req = self.conn.request(method, uri, body, headers)
 
@@ -143,19 +160,42 @@ class HTTPResponse(object):
         self.response = response
 
     def __repr__(self):
-        return '<HTTPResponse [%d]>' % self.status
+        return '<HTTPResponse [%d %s]>' % (self.status, self.reason)
 
     @property
     def content(self):
-        return self.response.read()
+        if self.response.getheader('content-encoding') == 'gzip':
+            from StringIO import StringIO
+            import gzip
+            buf = StringIO(self.response.read())
+            f = gzip.GzipFile(fileobj=buf)
+            return f.read()
+        else:
+            return self.response.read()
 
     @property
     def status(self):
         return self.response.status
 
     @property
+    def reason(self):
+        return self.response.reason
+
+    @property
     def cookies(self):
-        return self.response.getheader('set-cookie')
+        cookies_list = []
+        cookies = self.response.getheader('set-cookie')
+        cookies = cookies.split(',')
+        for cookie in cookies:
+            cookie = cookie.split(';')
+            for key_value in cookie:
+                key_value.strip('')
+                key, value = key_value.split('=', 1)
+                if key.lower() == 'version':
+                    pass
+                else:
+                    cookies_list.append((key, value))
+        return ';'.join(map(lambda key_value: '='.join(key_value), cookies_list))
 
     @property
     def realm(self):
@@ -172,3 +212,14 @@ class HTTPResponse(object):
     @property
     def will_close(self):
         return self.response.will_close
+
+def get(url, *args, **kargs):
+    return HTTPRequest(method='GET', url=url, **kargs)
+
+def post(url, *args, **kargs):
+    return HTTPRequest(method='POST', url=url, **kargs)
+
+if __name__ == '__main__':
+    response = get('www.baidu.com',
+            ).response
+    print response.content
